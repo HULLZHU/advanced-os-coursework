@@ -79,54 +79,35 @@ int main(int argc, char *argv[])
             if (i > 1) // we cannot have an arg with exit, first arg is "exit"
             {
                 write(STDERR_FILENO, error_message, strlen(error_message));
+            }
+            else
+            {
+                if (inputFile)
+                {
+                    fclose(inputFile);
+                }
 
                 for (int k = 0; k <= i; ++k)
                 {
                     free(args[k]);
                 }
 
-                continue;
-            }
-
-            if (inputFile)
-            {
-                fclose(inputFile);
-            }
-
-            for (int k = 0; k <= i; ++k)
-            {
-                free(args[k]);
-            }
-
-            free(args);
-            free(buffer);
-            free(path);
-            exit(0);        
+                free(args);
+                free(buffer);
+                free(path);
+                exit(0); 
+            }   
         }
         else if (!strcmp(args[0], "cd"))
         {
             if (i == 1 || i > 2) // 1st arg is program, but we need exactly 1 more argument to chdir
             {
                 write(STDERR_FILENO, error_message, strlen(error_message));
-                for (int k = 0; k <= i; ++k)
-                {
-                    free(args[k]);
-                }
-
-                continue;
             }
-
-            if(chdir(args[1]))
+            else if(chdir(args[1]))
             {
                 write(STDERR_FILENO, error_message, strlen(error_message));
             }
-
-            for (int k = 0; k <= i; ++k)
-            {
-                free(args[k]);
-            }
-
-            continue;
         }
         else if (!strcmp(args[0], "path"))
         {
@@ -143,16 +124,38 @@ int main(int argc, char *argv[])
 
                 strcat(path, args[k]);
             }
-
-            for (int k = 0; k <= i; ++k)
-            {
-                free(args[k]);
-            }
-
-            continue;
         }        
         else
         {
+            int err = 0;
+            for (int k = 0; k < i; ++k)
+            {
+                if(!strcmp(args[k], ">" ))
+                {
+                    if (k != i - 2) // if we do not have exactly 1 output file (-2 because NULL is at i)
+                    {
+                        write(STDERR_FILENO, error_message, strlen(error_message));
+                        err = 1;
+                        break;                        
+                    }
+                    else 
+                    {
+                        fclose(stdout);
+                        stdout = fopen(args[k], "w+");
+                    }
+                }
+            }
+
+            if (err)
+            {
+                for (int k = 0; k <= i; ++k)
+                {
+                    free(args[k]);
+                }
+
+                continue;
+            }
+
             int rc = fork();
 
             if (rc < 0)
@@ -187,6 +190,11 @@ int main(int argc, char *argv[])
                 }
                 exit(0);
             }
+        }
+
+        for (int k = 0; k <= i; ++k)
+        {
+            free(args[k]);
         }        
     }
 
