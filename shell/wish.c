@@ -59,6 +59,35 @@ int main(int argc, char *argv[])
         int i = 0;
         itr = buffer; // use separate pointer to iterate through buffer, so we can keep pointer to beginning of buffer
 
+        buffer = strsep(&itr, ">"); // split for case of redirection       
+
+        if (itr)
+        {
+            int count = 0;
+            char *fileName = token;
+            while((token = strsep(&itr, delim)) != NULL)
+            {
+                if (strstr(delim, token)) // do not store delim chars
+                {
+                    continue;
+                }
+
+                count += 1;
+            }
+
+            if (count != 1) // only 1 argument allowed on right hand side of '>'
+            {
+                write(STDERR_FILENO, error_message, strlen(error_message));
+                continue;
+            }
+            else
+            {
+                freopen(fileName, "w", stdout);
+                freopen(fileName, "w", stderr);
+            }
+        }        
+
+        itr = buffer;
         while((token = strsep(&itr, delim)) != NULL)
         {
             if (strstr(delim, token)) // do not store delim chars
@@ -126,36 +155,7 @@ int main(int argc, char *argv[])
             }
         }        
         else
-        {
-            int err = 0;
-            for (int k = 0; k < i; ++k)
-            {
-                if(!strcmp(args[k], ">" ))
-                {
-                    if (k != i - 2) // if we do not have exactly 1 output file (-2 because NULL is at i)
-                    {
-                        write(STDERR_FILENO, error_message, strlen(error_message));
-                        err = 1;
-                        break;                        
-                    }
-                    else 
-                    {
-                        fclose(stdout);
-                        stdout = fopen(args[k], "w+");
-                    }
-                }
-            }
-
-            if (err)
-            {
-                for (int k = 0; k <= i; ++k)
-                {
-                    free(args[k]);
-                }
-
-                continue;
-            }
-
+        {   
             int rc = fork();
 
             if (rc < 0)
