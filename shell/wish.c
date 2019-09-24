@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,10 +8,16 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+static const char *delim = " \t\n\r\v\f";
+static const char error_message[] = "An error has occurred\n";
+static char *path;
+FILE *inputFile;
+
+void process_command(char *buffer);
+
 int main(int argc, char *argv[])
 {
-    FILE *inputFile = NULL;
-    char error_message[] = "An error has occurred\n";
+    inputFile = NULL;
 
     if (argc > 2)
     {
@@ -29,15 +36,8 @@ int main(int argc, char *argv[])
     }
     
     size_t line_buf_size = 0;
-    char *buffer = NULL;
-    char *token = NULL;
-    char *itr = NULL;
-    char *delim = " \t\n\r\v\f";
-    char **args = malloc(sizeof(*args));
-    char *path = malloc((strlen("/bin") + 1) * sizeof(*path));
-    int redirection = 0;
-    int stdout_copy = dup(1);
-    int stderr_copy = dup(2);
+    char *buffer = NULL;    
+    path = malloc((strlen("/bin") + 1) * sizeof(*path));
     strcpy(path , "/bin");
 
     while (1)
@@ -54,51 +54,40 @@ int main(int argc, char *argv[])
                 fclose(inputFile);
             }
 
-            free(args);
             free(buffer); // from doc: buffer should be freed, even if getline fails (or EOF reached)
             free(path);
             exit(0);
         } 
         
-        int i = 0;
-        itr = buffer; // use separate pointer to iterate through buffer, so we can keep pointer to beginning of buffer
+        char *itr = buffer;
+        char *token = NULL;
 
-        buffer = strsep(&itr, ">"); // split for case of redirection       
-
-        if (itr)
+        // TODO: Spawn thread to run in parallel     
+        while((token = strsep(&itr, "&")) != NULL)
         {
-            int count = 0;
-            char *fileName = itr;
-            while((token = strsep(&itr, delim)) != NULL)
-            {
-                if (strstr(delim, token)) // do not store delim chars
-                {
-                    continue;
-                }
-
-                count += 1;
-            }
-
-            if (strstr(delim, buffer) || count != 1) // only 1 argument allowed on right hand side of '>'
-            {
-                write(STDERR_FILENO, error_message, strlen(error_message));
-                continue;
-            }
-            else
-            {
-                close(STDOUT_FILENO);                
-                close(STDERR_FILENO);
-                redirection = open(fileName, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
-            }
-        }
-        else if (redirection)
-        {
-            close(redirection);
-            dup2(stdout_copy, 1);
-            dup2(stderr_copy, 2);
+            process_command(token);
         }       
+    }
 
-        itr = buffer;
+    return 0;
+}
+
+void process_command(char *buffer)
+{    
+    char **args = malloc(sizeof(*args));
+    char *token = NULL;
+    char *itr = buffer; // use separate pointer to iterate through buffer, so we can keep pointer to beginning of buffer
+    int redirection = 0;
+    int stdout_copy = dup(1);
+    int stderr_copy = dup(2); 
+    int i = 0;    
+
+    buffer = strsep(&itr, ">"); // split for case of redirection  
+
+    if (itr)
+    {
+        int count = 0;
+        char *fileName = itr;
         while((token = strsep(&itr, delim)) != NULL)
         {
             if (strstr(delim, token)) // do not store delim chars
@@ -106,113 +95,147 @@ int main(int argc, char *argv[])
                 continue;
             }
 
-            i += 1;
-
-            args = realloc(args, (i + 1) * sizeof(*args)); // reallocate space of args to include ptr to new string 
-            args[i-1] = malloc((strlen(token) + 1) * sizeof(**args)); // allocate space for new string
-            args[i] = NULL; // args passed to execv must be terminated by a NULL pointer
-            strcpy(args[i-1], token);            
+            count += 1;
         }
 
-        if (i == 0)
+        if (strstr(delim, buffer) || count != 1) // only 1 argument allowed on right hand side of '>'
         {
-            continue;
-        }        
-
-        if (!strcmp(args[0], "exit")) // do not exit until exit is entered
-        {
-            if (i > 1) // we cannot have an arg with exit, first arg is "exit"
-            {
-                write(STDERR_FILENO, error_message, strlen(error_message));
-            }
-            else
-            {
-                if (inputFile)
-                {
-                    fclose(inputFile);
-                }
-
-                for (int k = 0; k <= i; ++k)
-                {
-                    free(args[k]);
-                }
-
-                free(args);
-                free(buffer);
-                free(path);
-                exit(0); 
-            }   
+            write(STDERR_FILENO, error_message, strlen(error_message));
+            free(args);
+            return;
         }
-        else if (!strcmp(args[0], "cd"))
-        {
-            if (i == 1 || i > 2) // 1st arg is program, but we need exactly 1 more argument to chdir
-            {
-                write(STDERR_FILENO, error_message, strlen(error_message));
-            }
-            else if(chdir(args[1]))
-            {
-                write(STDERR_FILENO, error_message, strlen(error_message));
-            }
-        }
-        else if (!strcmp(args[0], "path"))
-        {
-            strcpy(path, "");
-            for (int k = 1; k < i; ++k)
-            {
-                int space = k > 1 ? 1 : 0; // adding space for multiple path args 
-                path = realloc(path, (strlen(path) + strlen(args[k]) + space + 1 ) * sizeof(*path));
-                
-                if (space)
-                {
-                    strcat(path, " ");
-                }
-
-                strcat(path, args[k]);
-            }
-        }        
         else
-        {   
-            int rc = fork();
-
-            if (rc < 0)
-            {
-                write(STDERR_FILENO, error_message, strlen(error_message));
-            }
-            else if (rc > 0) // parent process enters here
-            {
-                wait(NULL);
-            }
-            else // child process enters here
-            {
-                itr = path;
-                int success = 0;
-                while ((token = strsep(&itr, " ")) != NULL)
-                {
-                    char *program = malloc(((strlen(token) + strlen(args[0]) + 2) * sizeof(char))); // +2 - 1 for / and 1 for null-terminated char
-                    strcpy(program, token);
-                    strcat(strcat(program, "/"), args[0]);
-
-                    if(!access(program, X_OK))
-                    {
-                        success = 1;
-                        execv(program, args);
-                    }
-                    free(program);
-                }
-
-                if (!success)
-                {
-                    write(STDERR_FILENO, error_message, strlen(error_message));
-                }
-                exit(0);
-            }
-        }
-
-        for (int k = 0; k <= i; ++k)
         {
-            free(args[k]);
-        }        
+            close(STDOUT_FILENO);                
+            close(STDERR_FILENO);
+            redirection = open(fileName, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
+        }
     }
 
-    return 0;
+    itr = buffer;
+    while((token = strsep(&itr, delim)) != NULL)
+    {
+        if (strstr(delim, token)) // do not store delim chars
+        {
+            continue;
+        }
+
+        i += 1;
+
+        args = realloc(args, (i + 1) * sizeof(*args)); // reallocate space of args to include ptr to new string 
+        args[i-1] = malloc((strlen(token) + 1) * sizeof(**args)); // allocate space for new string
+        args[i] = NULL; // args passed to execv must be terminated by a NULL pointer
+        strcpy(args[i-1], token);            
+    }
+
+    if (i == 0)
+    {
+        free(args);
+        return;
+    }        
+
+    if (!strcmp(args[0], "exit")) // do not exit until exit is entered
+    {
+        if (i > 1) // we cannot have an arg with exit, first arg is "exit"
+        {
+            write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+        else
+        {
+            if (inputFile)
+            {
+                fclose(inputFile);
+            }
+
+            for (int k = 0; k <= i; ++k)
+            {
+                free(args[k]);
+            }
+
+            free(args);
+            free(path);
+            free(buffer);
+            exit(0); 
+        }   
+    }
+    else if (!strcmp(args[0], "cd"))
+    {
+        if (i == 1 || i > 2) // 1st arg is program, but we need exactly 1 more argument to chdir
+        {
+            write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+        else if(chdir(args[1]))
+        {
+            write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+    }
+    else if (!strcmp(args[0], "path"))
+    {
+        strcpy(path, "");
+        for (int k = 1; k < i; ++k)
+        {
+            int space = k > 1 ? 1 : 0; // adding space for multiple path args 
+            path = realloc(path, (strlen(path) + strlen(args[k]) + space + 1 ) * sizeof(*path));
+            
+            if (space)
+            {
+                strcat(path, " ");
+            }
+
+            strcat(path, args[k]);
+        }
+    }        
+    else
+    {   
+        int rc = fork();
+
+        if (rc < 0)
+        {
+            write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+        else if (rc > 0) // parent process enters here
+        {
+            wait(NULL);
+        }
+        else // child process enters here
+        {
+            itr = path;
+            int success = 0;
+            while ((token = strsep(&itr, " ")) != NULL)
+            {
+                char *program = malloc(((strlen(token) + strlen(args[0]) + 2) * sizeof(char))); // +2 - 1 for / and 1 for null-terminated char
+                strcpy(program, token);
+                strcat(strcat(program, "/"), args[0]);
+
+                if(!access(program, X_OK))
+                {
+                    success = 1;
+                    execv(program, args);
+                }
+                free(program);
+            }
+
+            if (!success)
+            {
+                write(STDERR_FILENO, error_message, strlen(error_message));
+            }
+            exit(0);
+        }
+    }
+
+    for (int k = 0; k <= i; ++k)
+    {
+        free(args[k]);
+    }  
+
+    free(args);
+
+    if (redirection > 0)
+    {
+        close(redirection);
+        dup2(stdout_copy, 1);
+        dup2(stderr_copy, 2);
+    }     
+
+    return;    
 }
