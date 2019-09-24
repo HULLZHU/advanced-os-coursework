@@ -1,6 +1,8 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -30,10 +32,12 @@ int main(int argc, char *argv[])
     char *buffer = NULL;
     char *token = NULL;
     char *itr = NULL;
-    char *delim = " \t\n\r";
+    char *delim = " \t\n\r\v\f";
     char **args = malloc(sizeof(*args));
     char *path = malloc((strlen("/bin") + 1) * sizeof(*path));
-
+    int redirection = 0;
+    int stdout_copy = dup(1);
+    int stderr_copy = dup(2);
     strcpy(path , "/bin");
 
     while (1)
@@ -64,7 +68,7 @@ int main(int argc, char *argv[])
         if (itr)
         {
             int count = 0;
-            char *fileName = token;
+            char *fileName = itr;
             while((token = strsep(&itr, delim)) != NULL)
             {
                 if (strstr(delim, token)) // do not store delim chars
@@ -75,17 +79,24 @@ int main(int argc, char *argv[])
                 count += 1;
             }
 
-            if (count != 1) // only 1 argument allowed on right hand side of '>'
+            if (strstr(delim, buffer) || count != 1) // only 1 argument allowed on right hand side of '>'
             {
                 write(STDERR_FILENO, error_message, strlen(error_message));
                 continue;
             }
             else
             {
-                freopen(fileName, "w", stdout);
-                freopen(fileName, "w", stderr);
+                close(STDOUT_FILENO);                
+                close(STDERR_FILENO);
+                redirection = open(fileName, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
             }
-        }        
+        }
+        else if (redirection)
+        {
+            close(redirection);
+            dup2(stdout_copy, 1);
+            dup2(stderr_copy, 2);
+        }       
 
         itr = buffer;
         while((token = strsep(&itr, delim)) != NULL)
@@ -101,6 +112,11 @@ int main(int argc, char *argv[])
             args[i-1] = malloc((strlen(token) + 1) * sizeof(**args)); // allocate space for new string
             args[i] = NULL; // args passed to execv must be terminated by a NULL pointer
             strcpy(args[i-1], token);            
+        }
+
+        if (i == 0)
+        {
+            continue;
         }        
 
         if (!strcmp(args[0], "exit")) // do not exit until exit is entered
