@@ -8,12 +8,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static const char *delim = " \t\n\r\v\f";
 static const char error_message[] = "An error has occurred\n";
 static char *path;
-FILE *inputFile;
+static FILE *inputFile;
+static pthread_t threads[10];
+static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
-void process_command(char *buffer);
+void *process_command(void *buffer);
 
 int main(int argc, char *argv[])
 {
@@ -61,58 +62,46 @@ int main(int argc, char *argv[])
         
         char *itr = buffer;
         char *token = NULL;
+        int i = 0;
+        token = strsep(&itr, "&");
 
-        // TODO: Spawn thread to run in parallel     
-        while((token = strsep(&itr, "&")) != NULL)
+        if (itr != NULL) // & found
         {
-            process_command(token);
-        }       
+            do
+            {
+                pthread_create(&threads[i++], NULL, process_command, token);
+            } while ((token = strsep(&itr, "&")) != NULL);
+
+            for (int k = 0; k < i; ++k)
+            {
+                pthread_join(threads[k], NULL);
+            }   
+        }
+        else
+        {
+            process_command(buffer);
+        }                
     }
 
     return 0;
 }
 
-void process_command(char *buffer)
-{    
-    char **args = malloc(sizeof(*args));
-    char *token = NULL;
-    char *itr = buffer; // use separate pointer to iterate through buffer, so we can keep pointer to beginning of buffer
+void *process_command(void *buffer)
+{
+    char *buf = (char*)buffer; 
+
+    const char *delim = " \t\n\r\v\f";  
     int redirection = 0;
     int stdout_copy = dup(1);
-    int stderr_copy = dup(2); 
-    int i = 0;    
+    char *itr;
+    char *redirect = buf;
+    char *token = NULL;
+    char **args = malloc(sizeof(*args));
 
-    buffer = strsep(&itr, ">"); // split for case of redirection  
+    buf = strsep(&redirect, ">"); // split for case of redirection  
 
-    if (itr)
-    {
-        int count = 0;
-        char *fileName = itr;
-        while((token = strsep(&itr, delim)) != NULL)
-        {
-            if (strstr(delim, token)) // do not store delim chars
-            {
-                continue;
-            }
-
-            count += 1;
-        }
-
-        if (strstr(delim, buffer) || count != 1) // only 1 argument allowed on right hand side of '>'
-        {
-            write(STDERR_FILENO, error_message, strlen(error_message));
-            free(args);
-            return;
-        }
-        else
-        {
-            close(STDOUT_FILENO);                
-            close(STDERR_FILENO);
-            redirection = open(fileName, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
-        }
-    }
-
-    itr = buffer;
+    itr = buf;
+    int i = 0;
     while((token = strsep(&itr, delim)) != NULL)
     {
         if (strstr(delim, token)) // do not store delim chars
@@ -130,9 +119,14 @@ void process_command(char *buffer)
 
     if (i == 0)
     {
+        if(redirect) // no left-hand side
+        {
+            write(STDERR_FILENO, error_message, strlen(error_message));
+        }
+
         free(args);
-        return;
-    }        
+        return NULL;
+    }
 
     if (!strcmp(args[0], "exit")) // do not exit until exit is entered
     {
@@ -142,10 +136,12 @@ void process_command(char *buffer)
         }
         else
         {
+            pthread_mutex_lock(&lock);
             if (inputFile)
             {
                 fclose(inputFile);
             }
+            pthread_mutex_unlock(&lock);
 
             for (int k = 0; k <= i; ++k)
             {
@@ -171,6 +167,7 @@ void process_command(char *buffer)
     }
     else if (!strcmp(args[0], "path"))
     {
+        pthread_mutex_lock(&lock);
         strcpy(path, "");
         for (int k = 1; k < i; ++k)
         {
@@ -184,18 +181,62 @@ void process_command(char *buffer)
 
             strcat(path, args[k]);
         }
-    }        
+        pthread_mutex_unlock(&lock);
+    }    
     else
-    {   
+    {
+        int count = 0;
+        if (redirect != NULL)
+        {
+            pthread_mutex_lock(&lock);
+            char *fileName = NULL;
+            while((token = strsep(&redirect, delim)) != NULL)
+            {
+                if (strstr(delim, token)) // do not store delim chars
+                {
+                    continue;
+                }
+
+                if (count == 0)
+                {
+                    fileName = token;
+                }
+
+                count += 1;
+            }
+
+            if (count != 1) // only 1 argument allowed on right hand side of '>'
+            {
+                write(STDERR_FILENO, error_message, strlen(error_message));
+                free(args);
+                pthread_mutex_unlock(&lock);
+                return NULL;
+            }
+
+            close(STDOUT_FILENO);
+            redirection = open(fileName, O_CREAT|O_RDWR|O_TRUNC, S_IRWXU);
+        }    
+
         int rc = fork();
 
         if (rc < 0)
         {
             write(STDERR_FILENO, error_message, strlen(error_message));
+            if (redirection > 0)
+            {
+                dup2(stdout_copy, 1);
+                pthread_mutex_unlock(&lock);
+            }
         }
         else if (rc > 0) // parent process enters here
         {
             wait(NULL);
+            
+            if (redirection > 0)
+            {
+                dup2(stdout_copy, 1);
+                pthread_mutex_unlock(&lock);
+            }
         }
         else // child process enters here
         {
@@ -203,7 +244,7 @@ void process_command(char *buffer)
             int success = 0;
             while ((token = strsep(&itr, " ")) != NULL)
             {
-                char *program = malloc(((strlen(token) + strlen(args[0]) + 2) * sizeof(char))); // +2 - 1 for / and 1 for null-terminated char
+                char *program = malloc((strlen(token) + strlen(args[0]) + 2) * sizeof(char)); // +2 - 1 for / and 1 for null-terminated char
                 strcpy(program, token);
                 strcat(strcat(program, "/"), args[0]);
 
@@ -219,6 +260,7 @@ void process_command(char *buffer)
             {
                 write(STDERR_FILENO, error_message, strlen(error_message));
             }
+
             exit(0);
         }
     }
@@ -226,16 +268,8 @@ void process_command(char *buffer)
     for (int k = 0; k <= i; ++k)
     {
         free(args[k]);
-    }  
+    }
 
     free(args);
-
-    if (redirection > 0)
-    {
-        close(redirection);
-        dup2(stdout_copy, 1);
-        dup2(stderr_copy, 2);
-    }     
-
-    return;    
+    return NULL;
 }
