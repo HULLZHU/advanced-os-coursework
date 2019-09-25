@@ -1,6 +1,4 @@
-//#include <assert.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,8 +10,6 @@
 static const char error_message[] = "An error has occurred\n";
 static char *path;
 static FILE *inputFile;
-//static pthread_t threads[10];
-//static pthread_mutex_t lock;
 
 void process_command(void *buffer);
 
@@ -63,13 +59,10 @@ int main(int argc, char *argv[])
         
         char *itr = buffer;
         char *token = NULL;
-        //int i = 0;
         token = strsep(&itr, "&");
 
         if (itr != NULL) // & found
         {
-            // int rc = pthread_mutex_init(&lock, NULL);
-            // assert(rc == 0); // always check success!
             int rc;
             do
             {
@@ -81,28 +74,19 @@ int main(int argc, char *argv[])
                 }
                 else if (rc > 0) // parent process enters here
                 {
-                    //wait(NULL);
-
-                    //pthread_mutex_unlock(&lock);
+                    // do not wait here. wait outside loop, after all children have been spawned
                 }
                 else
                 {
                     process_command(token);
                     exit(0);
                 }
-                //pthread_create(&threads[i++], NULL, process_command, token);
             } while ((token = strsep(&itr, "&")) != NULL);
 
             if (rc > 0) // parent process
             {
-                wait(NULL);
+                while ((wait(NULL)) > 0); // loop to wait for all processes
             }
-            // for (int k = 0; k < i; ++k)
-            // {
-            //     pthread_join(threads[k], NULL);
-            // }
-            
-            //pthread_mutex_destroy(&lock);
         }
         else
         {
@@ -163,12 +147,10 @@ void process_command(void *buffer)
         }
         else
         {
-            //pthread_mutex_lock(&lock);
             if (inputFile)
             {
                 fclose(inputFile);
             }
-            //pthread_mutex_unlock(&lock);
 
             for (int k = 0; k <= i; ++k)
             {
@@ -194,7 +176,6 @@ void process_command(void *buffer)
     }
     else if (!strcmp(args[0], "path"))
     {
-        //pthread_mutex_lock(&lock);
         strcpy(path, "");
         for (int k = 1; k < i; ++k)
         {
@@ -208,12 +189,9 @@ void process_command(void *buffer)
 
             strcat(path, args[k]);
         }
-        //pthread_mutex_unlock(&lock);
     }    
     else
     {
-        //pthread_mutex_lock(&lock);
-
         int count = 0;
         if (redirect != NULL)
         {
@@ -237,13 +215,11 @@ void process_command(void *buffer)
             {
                 write(STDERR_FILENO, error_message, strlen(error_message));
                 free(args);
-                //pthread_mutex_unlock(&lock);
-
                 return;
             }
             
             close(STDOUT_FILENO);
-            redirection = open(fileName, O_CREAT|O_RDWR|O_TRUNC, S_IRWXU);
+            redirection = open(fileName, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
         }    
 
         int rc = fork();
@@ -260,8 +236,6 @@ void process_command(void *buffer)
             {
                 dup2(stdout_copy, 1);
             }
-
-            //pthread_mutex_unlock(&lock);
         }
         else // child process enters here
         {
