@@ -1,2 +1,4 @@
 # advanced-os-coursework
-This repo contains coursework completed for the Advanced Operating Systems course for my MSCS at UT Austin
+CS 380L Advanced Operating Systems
+
+This repo contains coursework completed while pursuing my MSCS at UT Austin
