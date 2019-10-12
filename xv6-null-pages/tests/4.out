@@ -1,0 +1,3 @@
+XV6_TEST_OUTPUT: Return value of munprotect with len 0: -1
+XV6_TEST_OUTPUT: Return value of munprotect with len -1: -1
+XV6_TEST_OUTPUT: Return value of munprotect with unaligned Page Address: -1

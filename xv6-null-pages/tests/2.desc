@@ -1,0 +1,4 @@
+testing that null dereference cause a pagefault to occur (trap 14)
+
+When you run the test_2.c in xv6, the program will crash & you should be getting an error message like 
+"pid 5 test_2: trap 14 err 4 on cpu 1 eip 0x1022 addr 0x0--kill proc"

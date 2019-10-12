@@ -1,0 +1,4 @@
+testing whether forking the process keeps the same protection bits.
+
+When you run the test_8.c in xv6, the program will crash & you should be getting an error message like:
+    "pid 23 test_8: trap 14 err 7 on cpu 0 eip 0x1047 addr 0x1000--kill proc"

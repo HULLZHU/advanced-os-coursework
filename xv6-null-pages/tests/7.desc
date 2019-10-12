@@ -1,0 +1,4 @@
+testing mprotect and munprotect by using it on the page that main() is mapped to and attempting to write things to main.
+
+When you run the test_7.c in xv6, the program will crash & you should be getting an error message like:
+"pid 8 test_7: trap 14 err 7 on cpu 1 eip 0x1020 addr 0x1000--kill proc"

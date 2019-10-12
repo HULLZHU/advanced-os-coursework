@@ -1,0 +1,2 @@
+XV6_TEST_OUTPUT: Return value of mprotect with len 1: 0
+XV6_TEST_OUTPUT: Return value of mprotect with len 2: 0

@@ -1,0 +1,3 @@
+test bad arguments for munprotect system call
+    * len <=0
+    * address not in page range (PGSIZE)

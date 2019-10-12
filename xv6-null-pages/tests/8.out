@@ -1,0 +1,2 @@
+XV6_TEST_OUTPUT: Return value of mprotect on memory 0x1000: 0
+XV6_TEST_OUTPUT: Inside child process
