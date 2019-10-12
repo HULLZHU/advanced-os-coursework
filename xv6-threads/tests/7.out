@@ -1,0 +1,5 @@
+XV6_TEST_OUTPUT : i before threadfunc = 0
+XV6_TEST_OUTPUT : Inside threadfunc
+XV6_TEST_OUTPUT : Lock Acquired inside threadfunc
+XV6_TEST_OUTPUT : Lock Released inside threadfunc
+XV6_TEST_OUTPUT : i after threadfunc = 31415

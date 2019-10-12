@@ -1,0 +1,1 @@
+testing thread_create() and thread_join() system call with a simple thread function.
