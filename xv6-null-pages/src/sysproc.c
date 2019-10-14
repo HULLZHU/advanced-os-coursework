@@ -89,3 +89,23 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_mprotect(void)
+{
+  void *addr;
+  int len;
+  argint(0, (int*)&addr); // retrieve args from sys call
+  argint(1, &len);
+
+  return mprotect(addr, len);
+}
+
+int sys_munprotect(void)
+{
+  void *addr;
+  int len;
+  argint(0, (int*)&addr); // retrieve args from sys call
+  argint(1, &len);
+
+  return munprotect(addr, len);
+}

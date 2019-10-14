@@ -385,6 +385,57 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   return 0;
 }
 
+int mprotect(void *addr, int len)
+{
+  if (len <= 0 || (uint)addr % PGSIZE != 0) // check for invalid length or address not page aligned
+  {
+    return -1;
+  }
+
+  pte_t *pte;
+  uint base_addr = PGROUNDDOWN((uint)addr);
+  uint curr = (uint)base_addr;
+  struct proc *curproc = myproc();
+
+  do 
+  {
+    pte = walkpgdir(curproc->pgdir, (void*)curr , 0);
+    *pte &= ~(PTE_W); // clear writable bit
+    curr += PGSIZE;
+
+  } while((uint)curr < ((uint) addr + len));
+
+  //flush
+  lcr3(V2P(curproc->pgdir));
+  
+  return 0;
+}
+
+int munprotect(void *addr, int len)
+{
+  if (len <= 0 || (uint)addr % PGSIZE != 0) // check for invalid length or address not page aligned
+  {
+    return -1;
+  }
+
+  pte_t *pte;
+  uint base_addr = PGROUNDDOWN((uint)addr);
+  uint curr = base_addr;
+  struct proc *curproc = myproc();
+
+  do 
+  {
+    pte = walkpgdir(curproc->pgdir, (void *)curr , 0);    
+    *pte |= (PTE_W); // set writable bit
+    curr += PGSIZE;
+  } while(curr < ((uint) addr + len));
+
+  //flush
+  lcr3(V2P(curproc->pgdir));
+  
+  return 0;
+}
+
 //PAGEBREAK!
 // Blank page.
 //PAGEBREAK!
