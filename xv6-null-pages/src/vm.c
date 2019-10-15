@@ -322,7 +322,7 @@ copyuvm(pde_t *pgdir, uint sz)
 
   if((d = setupkvm()) == 0)
     return 0;
-  for(i = PGSIZE; i < sz; i += PGSIZE){
+  for(i = PGSIZE; i < sz; i += PGSIZE) { // start at PGSIZE since address 0 (pg1) is now used for null dereference check
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
     if(!(*pte & PTE_P))
@@ -393,19 +393,18 @@ int mprotect(void *addr, int len)
   }
 
   pte_t *pte;
-  uint base_addr = PGROUNDDOWN((uint)addr);
-  uint curr = (uint)base_addr;
-  struct proc *curproc = myproc();
+  uint curr = (uint)addr;
+  struct proc *curproc = myproc(); // used to access page directory
 
   do 
   {
-    pte = walkpgdir(curproc->pgdir, (void*)curr , 0);
-    *pte &= ~(PTE_W); // clear writable bit
-    curr += PGSIZE;
+    pte = walkpgdir(curproc->pgdir, (void *)curr , 0); // get physical address of page table entry using virtual address curr   
+    *pte &= ~(PTE_W); // clear writable bit of pte
+    curr += PGSIZE; // move on to next page
 
-  } while((uint)curr < ((uint) addr + len));
+  } while(len -= 1 > 0); // only do this for "len" pages
 
-  //flush
+  // make sure ptes update
   lcr3(V2P(curproc->pgdir));
   
   return 0;
@@ -419,18 +418,17 @@ int munprotect(void *addr, int len)
   }
 
   pte_t *pte;
-  uint base_addr = PGROUNDDOWN((uint)addr);
-  uint curr = base_addr;
-  struct proc *curproc = myproc();
+  uint curr = (uint)addr;
+  struct proc *curproc = myproc(); // used to access page directory
 
   do 
   {
-    pte = walkpgdir(curproc->pgdir, (void *)curr , 0);    
-    *pte |= (PTE_W); // set writable bit
-    curr += PGSIZE;
-  } while(curr < ((uint) addr + len));
+    pte = walkpgdir(curproc->pgdir, (void *)curr , 0); // get physical address of page table entry using virtual address curr   
+    *pte |= (PTE_W); // set writable bit of pte
+    curr += PGSIZE; // move on to next page
+  } while(len -= 1 > 0); // only do this for "len" pages
 
-  //flush
+  // make sure ptes update
   lcr3(V2P(curproc->pgdir));
   
   return 0;
