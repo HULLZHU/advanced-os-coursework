@@ -104,3 +104,54 @@ memmove(void *vdst, const void *vsrc, int n)
     *dst++ = *src++;
   return vdst;
 }
+
+int lock_init(lock_t *lock)
+{
+  lock->ticket = 0;
+  return 0;
+}
+
+void lock_acquire(lock_t *lock)
+{
+  while(xchg(&lock->ticket, 1) != 0)
+	{}
+}
+
+void lock_release(lock_t *lock)
+{
+  xchg(&lock->ticket, 0);
+}
+
+int thread_create(void (*start_routine)(void*, void*), void *arg1, void *arg2)
+{
+  const int pgSize = 4096;
+
+  lock_t lk;
+	lock_init(&lk);
+	lock_acquire(&lk);
+  void *stack = malloc(pgSize*2); // two pages (in case we get back memory that is not page aligned)
+  lock_release(&lk);
+
+
+  if((uint)stack % pgSize != 0) // not page aligned
+  {
+    stack += (pgSize - ((uint)stack % pgSize)); // offset to start at next page
+  }
+
+  int result = clone(start_routine, arg1, arg2, stack);
+  return result;
+}
+
+int thread_join()
+{
+  void* stack = malloc(sizeof(void*));
+  int result = join(&stack);
+
+  lock_t lk;
+	lock_init(&lk);
+	lock_acquire(&lk);
+	free(stack);
+	lock_release(&lk);
+
+	return result;
+}

@@ -89,3 +89,37 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_clone(void)
+{
+  void (*fcn)(void *, void *);
+  void *arg1;
+  void *arg2;
+  void *stack;
+
+  // read in arguments from sys call and check if they are valid
+  if(argptr(0, (void*)&fcn, sizeof(void*)) < 0)
+    return -1;
+
+  if(argint(1, (void*)&arg1) < 0)
+    return -1;
+
+  if(argint(2, (void*)&arg2) < 0)
+    return -1;
+
+  if(argptr(3, (void*)&stack, sizeof(void*)) < 0)
+    return -1;
+
+  return clone(fcn, arg1, arg2, stack);
+}
+
+int sys_join(void)
+{
+   void **stack;
+
+  // read in argument from sys call and check if it is valid
+  if(argptr(0, (void*)&stack, sizeof(void**)) < 0)
+    return -1;
+
+  return join(stack);
+}
