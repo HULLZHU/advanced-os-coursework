@@ -112,6 +112,9 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // initialize mmap sz and list
+  p->mmap_sz = 0;
+  p->mmap_hd = 0;
   return p;
 }
 

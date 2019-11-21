@@ -89,3 +89,49 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_mmap(void)
+{
+  void *addr;
+  int length;
+  int prot;
+  int flags;
+  int fd;
+  int offset;
+
+  argint(0, (void*)&addr);
+  argint(1, &length);
+  argint(2, &prot);
+  argint(3, &flags);
+  argint(4, &fd);
+  argint(5, &offset);
+
+
+  return (int)mmap(addr, length, prot, flags, fd, offset);
+}
+
+int sys_munmap(void)
+{
+  void *addr;
+  int length;
+
+  argint(0, (void*)&addr);
+  argint(1, &length);
+
+  return munmap(addr, length);
+}
+
+int sys_kmalloc(void)
+{
+  int bytes;
+  argint(0, &bytes);
+  return (int)kmalloc(bytes);
+}
+
+int sys_kmfree(void)
+{
+  void *addr;
+  argint(0, (void*)&addr);
+  kmfree(addr);
+  return 0;
+}
