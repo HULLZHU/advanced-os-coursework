@@ -1,0 +1,2 @@
+XV6_TEST_OUTPUT : mmap good
+XV6_TEST_OUTPUT : Strlen Before modification: 0
