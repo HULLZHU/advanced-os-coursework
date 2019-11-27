@@ -90,37 +90,6 @@ sys_uptime(void)
   return xticks;
 }
 
-int sys_mmap(void)
-{
-  void *addr;
-  int length;
-  int prot;
-  int flags;
-  int fd;
-  int offset;
-
-  argint(0, (void*)&addr);
-  argint(1, &length);
-  argint(2, &prot);
-  argint(3, &flags);
-  argint(4, &fd);
-  argint(5, &offset);
-
-
-  return (int)mmap(addr, length, prot, flags, fd, offset);
-}
-
-int sys_munmap(void)
-{
-  void *addr;
-  int length;
-
-  argint(0, (void*)&addr);
-  argint(1, &length);
-
-  return munmap(addr, length);
-}
-
 int sys_kmalloc(void)
 {
   int bytes;
@@ -131,7 +100,37 @@ int sys_kmalloc(void)
 int sys_kmfree(void)
 {
   void *addr;
-  argint(0, (void*)&addr);
+  argint(0, (int*)&addr);
   kmfree(addr);
   return 0;
+}
+
+int sys_mmap(void)
+{
+  void *addr;
+  int length;
+  int prot;
+  int flags;
+  int fd;
+  int offset;
+
+  argint(0, (int*)&addr);
+  argint(1, &length);
+  argint(2, &prot);
+  argint(3, &flags);
+  argint(4, &fd);
+  argint(5, &offset);
+
+  return (int)mmap(addr, length, prot, flags, fd, offset);
+}
+
+int sys_munmap(void)
+{
+  void *addr;
+  int length;
+
+  argint(0, (int*)&addr);
+  argint(1, &length);
+
+  return munmap(addr, length);
 }

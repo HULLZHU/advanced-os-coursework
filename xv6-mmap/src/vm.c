@@ -295,6 +295,8 @@ freevm(pde_t *pgdir)
     }
   }
   kfree((char*)pgdir);
+
+  free_mmap_regions(myproc()->mmap_hd);  
 }
 
 // Clear PTE_U on a page. Used to create an inaccessible

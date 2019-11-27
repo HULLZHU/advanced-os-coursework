@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct mmap_region;
 
 // bio.c
 void            binit(void);
@@ -189,6 +190,8 @@ void            clearpteu(pde_t *pgdir, char *uva);
 // kmalloc.c
 void*           kmalloc(uint nbytes);
 void            kmfree(void *addr);
+void            free_mmap_regions(struct mmap_region*);
+
 
 // mmap.c
 void*           mmap(void *addr, int length, int prot, int flags, int fd, int offset);
