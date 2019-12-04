@@ -34,6 +34,8 @@ void            fileinit(void);
 int             fileread(struct file*, char*, int n);
 int             filestat(struct file*, struct stat*);
 int             filewrite(struct file*, char*, int n);
+int             fileseek(struct file* f, uint offset);
+
 
 // fs.c
 void            readsb(int dev, struct superblock *sb);
@@ -186,17 +188,18 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+int             mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
+pde_t *         walkpgdir(pde_t *pgdir, const void *va, int alloc);
 
 // kmalloc.c
 void*           kmalloc(uint nbytes);
 void            kmfree(void *addr);
-void            free_mmap_regions(struct mmap_region*);
-
 
 // mmap.c
 void*           mmap(void *addr, int length, int prot, int flags, int fd, int offset);
 int             munmap(void *addr, uint length);
-
+void            free_mmap_regions(struct mmap_region*);
+int             msync(void *start_addr, int length);
 
 
 // number of elements in fixed-size array

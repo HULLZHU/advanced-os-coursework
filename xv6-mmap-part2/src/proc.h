@@ -40,6 +40,7 @@ struct mmap_region {
     int region_type;
     int offset;
     int fd;
+    int prot;
     struct mmap_region *next;    
 };
 
@@ -58,7 +59,6 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  uint mmap_sz;                // Size of mmap region in memory (bytes)
   struct mmap_region *mmap_hd; // Beginning of list of mmap regions
 };
 

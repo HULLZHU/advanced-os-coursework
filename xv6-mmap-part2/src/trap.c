@@ -14,6 +14,79 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
+int pagefault_handler(struct trapframe *tf)
+{
+  struct proc *curproc = myproc();
+  uint va = PGROUNDDOWN(rcr2());
+
+  cprintf("============in pagefault_handler\n");
+  cprintf("pid %d %s: trap %d err %d on cpu %d "
+  "eip 0x%x addr 0x%x\n",
+  curproc->pid, curproc->name, tf->trapno,
+  tf->err, cpuid(), tf->eip, va);
+
+  struct mmap_region *head = curproc->mmap_hd;
+  int found = 0;
+
+  while (head)
+  {
+    if (head->addr == (void*)va)
+    {
+      found = 1;
+      break;
+    }
+    head = head->next;
+  }
+
+  if (!found)
+  {
+    return -1;
+  }
+  // char *mem; 
+  // for(; va < (uint)head->length; va += PGSIZE)
+  // {
+  //   mem = kalloc();
+  //   if(mem == 0)
+  //   {
+  //     cprintf("allocuvm out of memory\n");
+  //     return -1;
+  //   }
+  //   memset(mem, 0, PGSIZE);
+  //   if(mappages(curproc->pgdir, (char*)va, PGSIZE, V2P(mem), head->prot|PTE_U) < 0)
+  //   {
+  //     cprintf("allocuvm out of memory (2)\n");
+  //     kfree(mem);
+  //     return -1;
+  //   }
+  // }
+
+  char *mem = kalloc();
+
+  if (mem == 0)
+  {
+    return -1;
+  }
+
+  memset(mem, 0, head->length);
+
+  if(mappages(curproc->pgdir, (char*) va, head->length, V2P(mem), head->prot | PTE_U) < 0)
+  {
+    kfree(mem);
+    return -1;
+  }
+
+  if(head->fd > -1)
+  {
+    if (curproc->ofile[head->fd])
+    {
+      fileseek(curproc->ofile[head->fd], head->offset);
+      fileread(curproc->ofile[head->fd], mem, head->length);
+    }
+  }
+  
+  return 0;
+}
+
 void
 tvinit(void)
 {
@@ -43,6 +116,16 @@ trap(struct trapframe *tf)
     syscall();
     if(myproc()->killed)
       exit();
+    return;
+  }
+
+  if(tf->trapno == T_PGFLT) 
+  {
+    if(pagefault_handler(tf) == -1)
+    {
+      myproc()->killed = 1;
+    }
+
     return;
   }
 

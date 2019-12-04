@@ -134,3 +134,14 @@ int sys_munmap(void)
 
   return munmap(addr, length);
 }
+
+int sys_msync(void)
+{
+  void *start_addr;
+  int length;
+
+  argint(0, (int*)&start_addr);
+  argint(1, &length);
+
+  return msync(start_addr, length);
+}

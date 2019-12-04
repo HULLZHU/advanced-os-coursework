@@ -27,7 +27,7 @@ void* kmalloc(uint nbytes);
 void kmfree(void *addr);
 void *mmap(void *addr, int length, int prot, int flags, int fd, int offset);
 int munmap(void *addr, uint length);
-
+int msync(void *start_addr, uint length);
 
 // ulib.c
 int stat(const char*, struct stat*);

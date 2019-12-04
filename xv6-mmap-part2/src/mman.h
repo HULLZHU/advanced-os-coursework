@@ -1,0 +1,3 @@
+#define PROT_WRITE 0x02
+#define MAP_ANONYMOUS 0x04
+#define MAP_FILE 0x08
